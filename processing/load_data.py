@@ -11,6 +11,8 @@ import json
 def load_data(datadir, gene_name):
     result_files = list(Path(datadir).glob("*results*csv"))
     tpms = list(Path(datadir).glob("*tpms*csv"))
+    if not tpms:
+        tpms = list(Path(datadir).glob("*norm_cnts*csv"))
     vsd = list(Path(datadir).glob("*vsd*csv"))
     sampleData = list(Path(datadir).glob("*metadata.csv"))
     results = pd.concat([pd.read_csv(f, index_col=0).assign(contrast=f.stem.split("_unfiltered")[0])
@@ -46,6 +48,8 @@ def load_from_bucket(bucket_name, experiment_name, gene_name):
 
     result_files = [blob.name for blob in file_blobs if 'results.csv' in str(blob) and experiment_name in str(blob)]
     tpms_file = [blob.name for blob in file_blobs if 'tpms.csv' in str(blob) and experiment_name in str(blob)]
+    if not tpms_file:
+        tpms_file = [blob.name for blob in file_blobs if 'norm_cnts.csv' in str(blob) and experiment_name in str(blob)]
     vsd_file = [blob.name for blob in file_blobs if 'vsd.csv' in str(blob) and experiment_name in str(blob)]
     sampleData_file = [blob.name for blob in file_blobs if 'metadata.csv' in str(blob) and experiment_name in str(blob)]
     tpms = read_file(tpms_file[0]) if tpms_file else pd.DataFrame()

@@ -25,6 +25,7 @@ def show_expression(countData, sampleData, annot_dict={},
     df = df.apply(lambda x: np.log2(x + 0.5) if np.issubdtype(x.dtype, np.number) else x)
     sampleDataAb = sampleData.reset_index()
     df = df.reset_index()
+
     c1, c2 = st.columns(2)
     compare_by = c1.selectbox('Compare by', sampleDataAb.columns)
     categories = c1.multiselect(f'Categories of {compare_by} to display',
@@ -61,4 +62,3 @@ def show_expression(countData, sampleData, annot_dict={},
 
 def show_expression_heatmap():
     pass
-

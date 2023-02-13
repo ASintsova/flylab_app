@@ -24,22 +24,27 @@ def get_genes(results, gene_name):
 @st.cache
 def get_volcano_df(results, contrast_col, volcano_contrast, pval_col, ):
     volcano_df = results[results[contrast_col] == volcano_contrast].copy()
-    volcano_df['log10FDR'] = -10 * np.log10(volcano_df[pval_col])
+    volcano_df['log10FDR'] = -1 * np.log10(volcano_df[pval_col])
+    volcano_df.loc[volcano_df['log10FDR'] > 20, 'log10FDR'] = 20
     return volcano_df
 
 
-def show_volcano(results, st_col1, st_col2, gene_name='Gene',
+def show_volcano(results, gene_name='Gene',
                  contrast_col='contrast', lfc_col='log2FoldChange',
                  pval_col='padj',  genes_to_highlight=(), annotation_col='',):
-    st_col1.markdown('### Options')
+
+    st.markdown('### Options')
+
     contrasts = get_contrasts(results, contrast_col)
     genes = get_genes(results, gene_name)
-    volcano_contrast = st_col1.selectbox('Select a contrast', contrasts, key='volcano_contrasts')
+    genes_to_highlight = [g for g in genes_to_highlight if g in genes]
+    volcano_contrast = st.selectbox('Select a contrast', contrasts, key='volcano_contrasts')
     volcano_df = get_volcano_df(results, contrast_col, volcano_contrast, pval_col).copy()
-    fdr = st_col1.number_input('FDR cutoff', value=0.05)
-    lfc_th = st_col1.number_input('Log FC cutoff (absolute)', value=1.0)
+    k1, k2, k3 = st.columns(3)
+    fdr = k1.number_input('FDR cutoff', value=0.05)
+    lfc_th = k2.number_input('Log FC cutoff (absolute)', value=1.0)
     volcano_df['Hit'] = ((abs(volcano_df[lfc_col]) > lfc_th) & (volcano_df[pval_col] < fdr))
-    genes_to_highlight = st_col1.multiselect("Choose gene(s) of interest", genes,
+    genes_to_highlight = k3.multiselect("Choose gene(s) of interest", genes,
                                              default=genes_to_highlight, key='higenes')
     if annotation_col:
         volcano_df[annotation_col] = volcano_df[annotation_col].fillna('N/A')
@@ -70,15 +75,14 @@ def show_volcano(results, st_col1, st_col2, gene_name='Gene',
 
     fig.add_vline(x=lfc_th, line_width=2, line_dash="dash", line_color="grey")
     fig.add_vline(x=-lfc_th, line_width=2, line_dash="dash", line_color="grey")
-    fig.add_hline(y=-10 * np.log10(fdr), line_width=2, line_dash="dash", line_color="grey")
+    fig.add_hline(y=-1 * np.log10(fdr), line_width=2, line_dash="dash", line_color="grey")
     fig.update_layout({'paper_bgcolor': 'rgba(0,0,0,0)', 'plot_bgcolor': 'rgba(0,0,0,0)'}, autosize=True,
                       font=dict(size=18))
     fig.update_traces(marker=dict(
                                   line=dict(width=1,
                                             color='DarkSlateGrey'), opacity=0.8),
                       selector=dict(mode='markers'))
-    st_col2.plotly_chart(fig, use_container_width=True)
-    return volcano_df[volcano_df['Hit'] == True]
+    return volcano_df[volcano_df['Hit'] == True], fig
 
 
 def link_to_string(hits_df, st_col, lfc_col='log2FoldChange', gene_name='Gene'):
