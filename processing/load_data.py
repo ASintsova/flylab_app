@@ -8,7 +8,7 @@ import json
 
 
 @st.cache
-def load_data(datadir, gene_name):
+def load_data(datadir, gene_name=''):
     result_files = list(Path(datadir).glob("*results*csv"))
     tpms = list(Path(datadir).glob("*tpms*csv"))
     if not tpms:
