@@ -61,7 +61,7 @@ def app():
     st.header("DGE Results")
     with st.expander('Show DGE Results'):
 
-        hits_df, fig = show_volcano(dge.results,  gene_name='Gene', genes_to_highlight=list(genes),
+        hits_df, fig = show_volcano(dge.results,  gene_name='Gene', genes_to_highlight=list(genes_to_show),
                                annotation_col='SYMBOL')
 
         c1, c2 = st.columns([3, 1])
