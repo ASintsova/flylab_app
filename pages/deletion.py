@@ -13,14 +13,14 @@ page_name ='Deletion'
 
 def app():
     st.title('Deletion')
-    dge = DgeDataSet(bucket='jagannathan', experiment_name='deletion')
-    #dge = DgeDataSet(data_dir='/Users/ansintsova/git_repos/fly_rnaseq/data/deletion/results')
+    #dge = DgeDataSet(bucket='jagannathan', experiment_name='deletion')
+    dge = DgeDataSet(data_dir='/Users/ansintsova/git_repos/fly_rnaseq/data/deletion/results')
+    dge.load_annotations()
     st.header("PCA")
     with st.expander('Show PCA'):
         show_pca(dge.vsd, dge.sd)
     st.header("Expression")
     with st.expander('Show Gene Expression'):
-        dge.load_annotations()
         gene_name = st.radio('Choose gene annotation', ['FLYBASE', 'SYMBOL'])
         if gene_name == 'FLYBASE':
             genes = list(dge.tpms.FLYBASE.unique())
@@ -35,7 +35,6 @@ def app():
         categories = c1.multiselect(f'Categories of {compare_by} to display',
                                     ['All'] + list(dge.tpms[compare_by].unique()), default= 'All', key='cats')
         filter_by = c2.selectbox("Filter by", [None] + list(dge.sd.columns))
-
         filter_out = c2.selectbox(f'Which category of {filter_by} to keep?',
                                        list(dge.tpms[filter_by].unique())) if filter_by else None
         if 'All' in categories:
@@ -72,6 +71,6 @@ def app():
         download_filtered_hits(hits_df, c2)
 
 #
-if check_password():
-    app()
-
+# if check_password():
+#     app()
+app()
