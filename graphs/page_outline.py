@@ -2,23 +2,32 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 import numpy as np
-from streamlit_plotly_events import plotly_events
+import requests
+from time import sleep
+
+
+from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode, JsCode
 
 class RnaseqPage:
     def __init__(self, dge):
         self.dge = dge
         self.count_data = self.dge.vsd
+        self.tpm_data = self.dge.tpms
         self.sample_data = self.dge.sd
         self.results = self.dge.results
 
         self.config = {'contrast_col': 'contrast', 'pval_col': 'padj',
                        'lfc_col': 'log2FoldChange',
-                       'gene_name': 'Gene'}
+                       'gene_name': 'Gene',
+                       'primary_annot': 'FLYBASE',
+                       'secondary_annot': 'SYMBOL'}
 
         self.contrast_col = self.config['contrast_col']
         self.pval_col = self.config['pval_col']
         self.lfc_col = self.config['lfc_col']
         self.gene_name = self.config['gene_name']
+        self.primary_annot = self.config['primary_annot']
+        self.secondary_annot = self.config['secondary_annot']
 
     @st.cache
     def convert_df(self, df):
@@ -110,37 +119,101 @@ class RnaseqPage:
             selector=dict(mode='markers'))
         return fig
 
-    # def link_to_string(self, hits_df, st_col):
-    #     up = st_col.radio('Up or Down?', ('Upregulated Only', 'Downregulated Only', 'Both'))
-    #     if up == 'Upregulated Only':
-    #         hits_df = hits_df[hits_df[lfc_col] > 0]
-    #     elif up == 'Downregulated Only':
-    #         hits_df = hits_df[hits_df[lfc_col] < 0]
-    #
-    #     string_api_url = "https://version-11-5.string-db.org/api"
-    #     output_format = 'tsv-no-header'
-    #     method = 'get_link'
-    #     if gene_name:
-    #         my_genes = set(hits_df[gene_name].values)
-    #     else:
-    #         my_genes = list(hits_df.index)
-    #     request_url = "/".join([string_api_url, output_format, method])
-    #     # species = st_col.number_input("NCBI species taxid", value=3702, help='Arabidopsis thaliana: 3702')
-    #     species = 7227
-    #     params = {
-    #         "identifiers": "\r".join(my_genes),  # your protein
-    #         "species": species,  # species NCBI identifier
-    #         "network_flavor": "confidence",  # show confidence links
-    #         "caller_identity": "explodata"  # your app name
-    #     }
-    #     #
-    #     if st_col.button('Get STRING network'):
-    #         network = requests.post(request_url, data=params)
-    #         network_url = network.text.strip()
-    #         st_col.markdown(f"[Link to STRING network]({network_url})")
-    #         sleep(1)
+
+    def show_expression_graph(self, selected = []):
+        if self.secondary_annot:
+            annotation_column = st.radio('Choose gene annotation', [self.primary_annot, self.secondary_annot])
+        else:
+            annotation_column = self.primary_annot
+        gene_options = self.tpm_data[annotation_column].unique()
+        if selected:
+            tpm_genes = selected
+            df = self.tpm_data[self.tpm_data[self.primary_annot].isin(selected)].copy()
+        else:
+            tpm_genes = st.multiselect("Choose gene(s) of interest", gene_options, key='gois')
+            df = self.tpm_data[self.tpm_data[annotation_column].isin(tpm_genes)].copy()
+            df = df.apply(lambda x: np.log2(x + 0.5) if np.issubdtype(x.dtype, np.number) else x)
+        c1, c2 = st.columns(2)
+        compare_by = c1.selectbox('Compare by', self.sample_data.columns)
+        categories = c1.multiselect(f'Categories of {compare_by} to display',
+                                    ['All'] + list(self.sample_data[compare_by].unique()), key='cats')
+        if len(self.sample_data.columns) > 1:
+            filter_by = c2.selectbox("Filter by", self.sample_data.columns)
+            filter_out = c2.selectbox(f'Which category of {filter_by} to keep?',
+                                  [None] + list(self.sample_data[filter_by].unique()))
+        else:
+            filter_by = filter_out = ''
+        if 'All' in categories:
+            categories = list(self.sample_data[compare_by].unique())
+        if tpm_genes:
+            if len(tpm_genes) * len(categories) > 40:
+                st.write('Too many genes/categories to display, consider choosing fewer genes')
+                st.stop()
+            c3, c4 = st.columns(2)
+            tpm_label = 'log2 (Normalised Count)'
+            #df = df[df[compare_by].isin(categories)]
+
+            if filter_out:
+                df = df[df[filter_by] != filter_out]
+            # gene_df2 = (gene_df.melt(id_vars=['Gene'], value_name=tpm_label, var_name=sample_col)
+            #             .merge(sample_df, how='inner', on=sample_col))
+            groupby = st.radio('Group by', [annotation_column, compare_by])
+            color_by = [c for c in [annotation_column, compare_by] if c != groupby][0]
+            fig = px.box(df, x=groupby, y='Normalised Counts', color=color_by,
+                         hover_data=list(self.tpm_data.columns), points='all')
+            fig.update_layout({'paper_bgcolor': 'rgba(0,0,0,0)', 'plot_bgcolor': 'rgba(0,0,0,0)'}, autosize=True,
+                              font=dict(size=16))
+            fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='LightGrey')
+            st.plotly_chart(fig, use_container_width=True)
+
+
+    def link_to_string(self, hits_df):
+        up = st.radio('Up or Down?', ('Upregulated Only', 'Downregulated Only', 'Both'))
+        if up == 'Upregulated Only':
+            hits_df = hits_df[hits_df[self.lfc_col] > 0]
+        elif up == 'Downregulated Only':
+            hits_df = hits_df[hits_df[self.lfc_col] < 0]
+
+        string_api_url = "https://version-11-5.string-db.org/api"
+        output_format = 'tsv-no-header'
+        method = 'get_link'
+        if self.gene_name:
+            my_genes = set(hits_df[self.gene_name].values)
+        else:
+            my_genes = list(hits_df.index)
+        request_url = "/".join([string_api_url, output_format, method])
+        species = 7227
+        params = {
+            "identifiers": "\r".join(my_genes),  # your protein
+            "species": species,  # species NCBI identifier
+            "network_flavor": "confidence",  # show confidence links
+            "caller_identity": "explodata"  # your app name
+        }
+        #
+        if st.button('Get STRING network'):
+            network = requests.post(request_url, data=params)
+            network_url = network.text.strip()
+            st.markdown(f"[Link to STRING network]({network_url})")
+            sleep(1)
+
+
 
     def dge_layout(self, annotation_col='SYMBOL'):
+
+        ### Nice stuff comes by playing with the arguments the package has (https://streamlit-aggrid.readthedocs.io/en/docs/)
+        # @st.cache
+        def load_gridOptions(df):
+            """Cached function to load grid options"""
+            gb = GridOptionsBuilder.from_dataframe(df)
+            gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)  # Add pagination
+            gb.configure_selection('multiple',
+                                   use_checkbox=True)  # Enable multiselection, if nested rows add this -->  groupSelectsChildren="Group checkbox select children"
+            gb.configure_column("Gene", headerName="Gene", cellRenderer=JsCode(
+                '''function(params) {return `<a href=http://flybase.org/reports/${params.value} target="_blank">${params.value}</a>`}'''),
+                                width=300)
+            gridOptions = gb.build()
+            return gridOptions
+
         st.header("DGE Results")
         with st.expander('Show DGE Results'):
             st.markdown('### Options')
@@ -152,6 +225,7 @@ class RnaseqPage:
             fdr = k1.number_input('FDR cutoff', value=0.05)
             lfc_th = k2.number_input('Log FC cutoff (absolute)', value=1.0)
             volcano_df['Hit'] = ((abs(volcano_df[self.lfc_col]) > lfc_th) & (volcano_df[self.pval_col] < fdr))
+
             genes_to_highlight = k3.multiselect("Choose gene(s) of interest", genes, key='higenes')
             if annotation_col:
                 volcano_df[annotation_col] = volcano_df[annotation_col].fillna('N/A')
@@ -171,18 +245,52 @@ class RnaseqPage:
                         }
             if annotation_col:
                 on_hover[annotation_col] = True
-
+            st.write(volcano_df['Hit'].sum())
+            volcano_short = volcano_df[['Gene', 'SYMBOL', 'log2FoldChange', 'padj', 'contrast']]
             hits_df = volcano_df[volcano_df['Hit'] == True]
-            fig = self.volcano_graph(volcano_df,  size_max, volcano_contrast, lfc_th, fdr, on_hover)
+            self.link_to_string(hits_df)
+            fig = self.volcano_graph(volcano_df, size_max, volcano_contrast, lfc_th, fdr, on_hover)
             c1, c2 = st.columns([3, 1])
             st.plotly_chart(fig, use_container_width=True)
+            grid_response = AgGrid(
+                volcano_short,
+                gridOptions=load_gridOptions(volcano_short),
+                data_return_mode='AS_INPUT',
+                #update_mode='NO_UPDATE',
+                update_mode='MODEL_CHANGED',
+                # header_checkbox_selection_filtered_only=True,
+                fit_columns_on_grid_load=False,
+                # theme='blue', #Add theme color to the table
+                enable_enterprise_modules=True,
+                height=350,
+                width='100%',
+                key='an_unique_key',
+                reload_data=False,
+                allow_unsafe_jscode=True
+
+            )
+            selected = grid_response['selected_rows']
+            if selected:
+                #selected = pd.DataFrame(selected)[['Gene', 'SYMBOL','contrast', self.lfc_col, 'padj']]
+                selected = [s['Gene'] for s in selected]
+                #selected = [s[0] for s in selected]
+                #df2 = selected.set_index('Gene').merge(self.count_data, left_index=True, right_index =True, how='left')  # Pass the selected rows to a new dataframe df
+                #df3 = self.results[self.results[self.gene_name].isin(selected[self.gene_name].values)]
+                #st.write(df2.reset)
+                #st.write(df3)
+
+            self.show_expression_graph(selected)
+            st.markdown("## Show clustergram (under construction)")
+            self.clustergram()
 
     def clustergram(self):
         import dash_bio as dashbio
         genes = self.count_data.var(axis=1).sort_values(ascending=False).head(500).index
+
         test = self.count_data.loc[genes]
 
-
+        test = (test.merge(self.tpm_data[['FLYBASE', 'SYMBOL']].drop_duplicates(), left_index=True, right_on='FLYBASE', how='left')
+                .set_index(['SYMBOL', 'FLYBASE']))
         rows = list(test.index.values)
         columns = list(test.columns)
         fig = dashbio.Clustergram(
@@ -194,8 +302,8 @@ class RnaseqPage:
                         'row': 250,
                         'col': 700
                     },
-                    height=800,
-                    width=700,
+                    height=1000,
+                    width=1200,
                     hidden_labels='row'
                 )
         st.plotly_chart(fig)

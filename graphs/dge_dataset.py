@@ -5,13 +5,14 @@ import streamlit as st
 
 class DgeDataSet:
 
-    def __init__(self, bucket='', experiment_name='', data_dir='',  gene_name=''):
+    def __init__(self, bucket='', experiment_name='', data_dir='',  gene_name='',
+                 sample_id = 'sampleID'):
         self.data_dir = data_dir
         self.bucket = bucket
         self.experiment_name = experiment_name
         self.gene_name = gene_name
         self.results, self.tpms, self.vsd, self.sd = self.load_experiment()
-
+        self.sample_id = sample_id
 
     def load_experiment(self):
         if self.data_dir:
@@ -25,10 +26,10 @@ class DgeDataSet:
         annotations = load_annotations()['FLYBASE']
         annotations = {v:k for k,v in annotations.items()}
         self.tpms = self.tpms.reset_index()
-        self.tpms = self.tpms.melt(id_vars='index', var_name='sampleID', value_name='Normalised Counts')
+        self.tpms = self.tpms.melt(id_vars='index', var_name=self.sample_id, value_name='Normalised Counts')
         self.tpms['SYMBOL'] = self.tpms['index'].map(annotations)
         self.tpms = self.tpms.rename({'index': 'FLYBASE'}, axis=1)
-        self.tpms = self.tpms.merge(self.sd.reset_index(), left_on='sampleID', right_on='sampleID')
+        self.tpms = self.tpms.merge(self.sd.reset_index(), left_on=self.sample_id, right_on=self.sample_id)
 
     @st.cache
     def find_pcs(self, num_pcs=2, num_genes=None, choose_by='variance'):

@@ -7,8 +7,8 @@ page_name ='Deletion'
 
 
 def app():
-    st.title('Deletion')
-    dge = DgeDataSet(data_dir='/Users/ansintsova/git_repos/fly_rnaseq/data/deletion/results')
+    st.title('D1')
+    dge = DgeDataSet(bucket='jagannathan', experiment_name='07-04-23_d1', sample_id='sample_id')
     dge.load_annotations()
     page = RnaseqPage(dge)
     page.pca_layout()
