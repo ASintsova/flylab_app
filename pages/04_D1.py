@@ -1,6 +1,7 @@
 import streamlit as st
 from graphs.page_outline import RnaseqPage
 from graphs.dge_dataset import DgeDataSet
+from check_password import check_password
 
 st.set_page_config(layout="wide")
 page_name ='Deletion'
