@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import requests
 from time import sleep
-
+from datetime import datetime
 
 from st_aggrid import GridOptionsBuilder, AgGrid, GridUpdateMode, DataReturnMode, JsCode
 
@@ -132,7 +132,7 @@ class RnaseqPage:
         else:
             tpm_genes = st.multiselect("Choose gene(s) of interest", gene_options, key='gois')
             df = self.tpm_data[self.tpm_data[annotation_column].isin(tpm_genes)].copy()
-            df = df.apply(lambda x: np.log2(x + 0.5) if np.issubdtype(x.dtype, np.number) else x)
+        df = df.apply(lambda x: np.log2(x + 0.5) if np.issubdtype(x.dtype, np.number) else x)
         c1, c2 = st.columns(2)
         compare_by = c1.selectbox('Compare by', self.sample_data.columns)
         categories = c1.multiselect(f'Categories of {compare_by} to display',
@@ -160,6 +160,7 @@ class RnaseqPage:
             groupby = st.radio('Group by', [annotation_column, compare_by])
             color_by = [c for c in [annotation_column, compare_by] if c != groupby][0]
             fig = px.box(df, x=groupby, y='Normalised Counts', color=color_by,
+                         labels = {'Normalised Counts':'log2 Normalised Counts'},
                          hover_data=list(self.tpm_data.columns), points='all')
             fig.update_layout({'paper_bgcolor': 'rgba(0,0,0,0)', 'plot_bgcolor': 'rgba(0,0,0,0)'}, autosize=True,
                               font=dict(size=16))
@@ -167,8 +168,8 @@ class RnaseqPage:
             st.plotly_chart(fig, use_container_width=True)
 
 
-    def link_to_string(self, hits_df):
-        up = st.radio('Up or Down?', ('Upregulated Only', 'Downregulated Only', 'Both'))
+    def link_to_string(self, hits_df, st_col):
+        up = st_col.radio('Up or Down?', ('Upregulated Only', 'Downregulated Only', 'Both'))
         if up == 'Upregulated Only':
             hits_df = hits_df[hits_df[self.lfc_col] > 0]
         elif up == 'Downregulated Only':
@@ -190,13 +191,22 @@ class RnaseqPage:
             "caller_identity": "explodata"  # your app name
         }
         #
-        if st.button('Get STRING network'):
+        if st_col.button('Get STRING network'):
             network = requests.post(request_url, data=params)
             network_url = network.text.strip()
-            st.markdown(f"[Link to STRING network]({network_url})")
+            st_col.markdown(f"[Link to STRING network]({network_url})")
             sleep(1)
 
+    @st.cache
+    def convert_df(self, df):
+        return df.to_csv().encode('utf-8')
 
+    def download_filtered_hits(self, hits_df, st_col, contrast_col="contrast"):
+
+        fname_default = hits_df[contrast_col].unique()[0]
+        fname = st_col.text_input("File name", value=fname_default)
+        fname = fname + ".csv"
+        st_col.download_button("Download data as csv file", self.convert_df(hits_df), file_name=fname)
 
     def dge_layout(self, annotation_col='SYMBOL'):
 
@@ -245,13 +255,22 @@ class RnaseqPage:
                         }
             if annotation_col:
                 on_hover[annotation_col] = True
-            st.write(volcano_df['Hit'].sum())
-            volcano_short = volcano_df[['Gene', 'SYMBOL', 'log2FoldChange', 'padj', 'contrast']]
+            st.write(f"Number of hits: {volcano_df['Hit'].sum()}")
+            volcano_short = volcano_df[['Gene', 'SYMBOL', 'baseMean', 'log2FoldChange', 'padj', 'contrast']]
             hits_df = volcano_df[volcano_df['Hit'] == True]
-            self.link_to_string(hits_df)
+            c1, c2 = st.columns(2)
+            self.link_to_string(hits_df, c1)
+            self.download_filtered_hits(hits_df, c2)
             fig = self.volcano_graph(volcano_df, size_max, volcano_contrast, lfc_th, fdr, on_hover)
-            c1, c2 = st.columns([3, 1])
+
             st.plotly_chart(fig, use_container_width=True)
+            if 'grid_key' not in st.session_state:
+                st.session_state['grid_key'] = datetime.now()
+                st.session_state['volcano_df'] = volcano_short
+            if st.button(label='Update table'):
+                st.session_state['volcano_df'] = volcano_short
+                st.session_state['grid_key'] = datetime.now()
+
             grid_response = AgGrid(
                 volcano_short,
                 gridOptions=load_gridOptions(volcano_short),
@@ -264,7 +283,7 @@ class RnaseqPage:
                 enable_enterprise_modules=True,
                 height=350,
                 width='100%',
-                key='an_unique_key',
+                key=str(st.session_state['grid_key']),
                 reload_data=False,
                 allow_unsafe_jscode=True
 
