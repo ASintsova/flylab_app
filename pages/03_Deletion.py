@@ -15,4 +15,5 @@ def app():
     page.dge_layout()
     #page.clustergram()
 
-app()
+if check_password():
+    app()

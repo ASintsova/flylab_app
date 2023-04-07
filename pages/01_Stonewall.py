@@ -14,4 +14,5 @@ def app():
     page.pca_layout()
     page.dge_layout()
 
-app()
+if check_password():
+    app()
