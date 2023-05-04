@@ -94,7 +94,7 @@ class RnaseqPage:
     def get_volcano_df(self, volcano_contrast):
         volcano_df = self.results[self.results[self.contrast_col] == volcano_contrast].copy()
         volcano_df['log10FDR'] = -1 * np.log10(volcano_df[self.pval_col])
-        volcano_df.loc[volcano_df['log10FDR'] > 20, 'log10FDR'] = 20
+        #volcano_df.loc[volcano_df['log10FDR'] > 20, 'log10FDR'] = 20
         return volcano_df
 
     def volcano_graph(self, volcano_df,  size_max, volcano_contrast, lfc_th, fdr, on_hover):
