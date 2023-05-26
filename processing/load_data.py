@@ -7,7 +7,7 @@ from io import StringIO
 import json
 
 
-@st.cache
+@st.cache_data
 def load_data(datadir, gene_name=''):
     result_files = list(Path(datadir).glob("*results*csv"))
     tpms = list(Path(datadir).glob("*tpms*csv"))
@@ -38,7 +38,7 @@ def load_from_bucket(bucket_name, experiment_name, gene_name):
     )
     client = storage.Client(credentials=credentials)
 
-    @st.experimental_memo(ttl=600)
+    @st.cache_data(ttl=600)
     def read_file(file_path):
         bucket = client.bucket(bucket_name)
         content = bucket.blob(file_path).download_as_string().decode("utf-8")
@@ -76,7 +76,7 @@ def load_annotations():
     )
     client = storage.Client(credentials=credentials)
 
-    @st.experimental_memo(ttl=600)
+    @st.cache_data(ttl=600)
     def read_file(file_path):
         bucket = client.bucket('jagannathan')
         content = bucket.blob(file_path).download_as_string().decode("utf-8")

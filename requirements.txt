@@ -1,12 +1,11 @@
-numpy
 pandas
 plotly
 scipy
-streamlit == 1.17.0
+streamlit == 1.22.0
 scikit-learn
 pyyaml
 google-cloud-storage==2.4.0
 requests == 2.27.*
 dash-bio == 1.0.1
 altair == 4.2.*
-streamlit-aggrid
+streamlit-aggrid == 0.3.3

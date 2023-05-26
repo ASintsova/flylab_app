@@ -29,7 +29,7 @@ class RnaseqPage:
         self.primary_annot = self.config['primary_annot']
         self.secondary_annot = self.config['secondary_annot']
 
-    @st.cache
+
     def convert_df(self, df):
         return df.to_csv().encode('utf-8')
 
@@ -82,11 +82,11 @@ class RnaseqPage:
             c4.write(f'### PCs summarized by {pc_col}')
             c4.plotly_chart(fig3, use_container_width=True)
 
-    @st.cache
+
     def get_genes(self):
         return list(self.results[self.gene_name].unique())
 
-    @st.cache
+
     def get_contrasts(self):
         return list(self.results[self.contrast_col].unique())
 
@@ -197,8 +197,8 @@ class RnaseqPage:
             st_col.markdown(f"[Link to STRING network]({network_url})")
             sleep(1)
 
-    @st.cache
-    def convert_df(self, df):
+
+    def convert_df(_self, df):
         return df.to_csv().encode('utf-8')
 
     def download_filtered_hits(self, hits_df, st_col, contrast_col="contrast"):
@@ -214,6 +214,7 @@ class RnaseqPage:
         # @st.cache
         def load_gridOptions(df):
             """Cached function to load grid options"""
+            #df['Link'] = df['Gene'].apply(lambda x: f"http://flybase.org/reports/{x}")
             gb = GridOptionsBuilder.from_dataframe(df)
             gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)  # Add pagination
             gb.configure_selection('multiple',
@@ -221,6 +222,24 @@ class RnaseqPage:
             gb.configure_column("Gene", headerName="Gene", cellRenderer=JsCode(
                 '''function(params) {return `<a href=http://flybase.org/reports/${params.value} target="_blank">${params.value}</a>`}'''),
                                 width=300)
+
+            # gb.configure_column(
+            #     "Link", "Link",
+            #     cellRenderer=JsCode("""
+            #         class UrlCellRenderer {
+            #           init(params) {
+            #             this.eGui = document.createElement('a');
+            #             this.eGui.innerText = params.value;
+            #             this.eGui.setAttribute('href', params.value);
+            #             this.eGui.setAttribute('style', "text-decoration:none");
+            #             this.eGui.setAttribute('target', "_blank");
+            #           }
+            #           getGui() {
+            #             return this.eGui;
+            #           }
+            #         }
+            #     """)
+            # )
             gridOptions = gb.build()
             return gridOptions
 
